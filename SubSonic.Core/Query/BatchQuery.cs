@@ -176,10 +176,19 @@ namespace SubSonic.Query
             _fixedCommands.Add(qry.GetCommand());
         }
 
+
         /// <summary>
         /// Executes the transaction.
         /// </summary>
         public void ExecuteTransaction()
+        {
+            ExecuteTransaction(false);
+        }
+        /// <summary>
+        /// Executes the transaction.
+        /// </summary>
+        /// <param name="assertAffectsOneRecordPerQuery">If true, throws a DataConcurrenyException unless every query affects 1 record</param>
+        internal void ExecuteTransaction(bool assertAffectsOneRecordPerQuery)
         {
             using(var scope = new AutomaticConnectionScope(_provider))
             {
@@ -193,7 +202,9 @@ namespace SubSonic.Query
                             dbCommand.Connection = scope.Connection;
                             dbCommand.Transaction = trans;
 
-                            dbCommand.ExecuteNonQuery();
+                            int affected = dbCommand.ExecuteNonQuery();
+                            if (assertAffectsOneRecordPerQuery && affected != 1)
+                                throw new DataConcurrencyException();
                         }
                     }
                     trans.Commit();

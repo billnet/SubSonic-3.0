@@ -29,7 +29,8 @@ namespace SubSonic.Repository
         private readonly IDataProvider _provider;
         private readonly List<Type> migrated;
         private readonly SimpleRepositoryOptions _options=SimpleRepositoryOptions.Default;
-        
+        private readonly List<Type> refableTypes;
+
         public SimpleRepository() : this(ProviderFactory.GetProvider(),SimpleRepositoryOptions.Default) {}
 
         public SimpleRepository(string connectionStringName)
@@ -37,6 +38,18 @@ namespace SubSonic.Repository
 
         public SimpleRepository(string connectionStringName, SimpleRepositoryOptions options)
             : this(ProviderFactory.GetProvider(connectionStringName), options) { }
+
+        public SimpleRepository(string connectionStringName, string schemaName)
+            : this(connectionStringName) 
+        {
+            _provider.DbSchemaName = schemaName;
+        }
+
+        public SimpleRepository(string connectionStringName, string schemaName, SimpleRepositoryOptions options)
+            : this(ProviderFactory.GetProvider(connectionStringName), options) 
+        {
+            _provider.DbSchemaName = schemaName;
+        }
 
 
         public SimpleRepository(SimpleRepositoryOptions options) : this(ProviderFactory.GetProvider(), options) { }
@@ -47,6 +60,7 @@ namespace SubSonic.Repository
         {
             _provider = provider;
             _options = options;
+            refableTypes = new List<Type>();
             if (_options.Contains(SimpleRepositoryOptions.RunMigrations))
                 migrated = new List<Type>();
         }
@@ -89,6 +103,10 @@ namespace SubSonic.Repository
             var list = qry.ToList<T>();
             if(list.Count > 0)
                 result = list[0];
+            if (result.GetType().HasObjectReferences(_provider.ReferenceableTypes))
+            {
+                // Load
+            }
             return result;
         }
 
@@ -225,7 +243,11 @@ namespace SubSonic.Repository
         {
             if (_options.Contains(SimpleRepositoryOptions.RunMigrations))
                 Migrate<T>();
-            return item.ToUpdateQuery(_provider).Execute();
+            int affected = item.ToUpdateQuery(_provider).Execute();
+            
+            if (affected != 1) // throw an error (The update was not performed)
+                throw new DataConcurrencyException();
+            return affected;
         }
 
         /// <summary>
@@ -245,9 +267,15 @@ namespace SubSonic.Repository
                 batch.QueueForTransaction(item.ToUpdateQuery(_provider));
                 result++;
             }
-            batch.ExecuteTransaction();
+            // Added true switch for ExecuteTransaction to rollback
+            // unless every Query affects 1 record
+            batch.ExecuteTransaction(true);
             return result;
         }
+
+        // TODO: Should concurrency be checked on DELETE? I think so,
+        // but on the other hand, if you delete something don't you
+        // just want it to go away?
 
         /// <summary>
         /// Deletes the specified key.
@@ -299,6 +327,25 @@ namespace SubSonic.Repository
 
         #endregion
 
+        /// <summary>
+        /// Add a type to the list of types that can be used for Foreign Keys
+        /// </summary>
+        /// <param name="type"></param>
+        public void AddReferenceableTypes(Type type)
+        {
+            refableTypes.Add(type);
+            _provider.ReferenceableTypes = refableTypes;
+        }
+
+        /// <summary>
+        /// Add a range of types to the list of types that can be used for Foreign Keys
+        /// </summary>
+        /// <param name="types"></param>
+        public void AddReferenceableTypes(List<Type> types)
+        {
+            refableTypes.AddRange(types);
+            _provider.ReferenceableTypes = refableTypes;
+        }
 
         /// <summary>
         /// Migrates this instance.

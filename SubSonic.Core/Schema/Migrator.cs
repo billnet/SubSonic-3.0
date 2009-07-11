@@ -88,6 +88,12 @@ namespace SubSonic.Schema
             var result = new List<string>();
 
             var table = type.ToSchemaTable(provider);
+            // *** FOREIGN KEYS ***
+            // TODO: Is this code needed in two places?
+            if (provider.ReferenceableTypes != null && provider.ReferenceableTypes.Count > 0)
+            {
+                table.AddReferencesAsForeignKeys(type, provider);
+            }
             var existing = provider.GetTableFromDB(table.Name);
 
             if(existing != null)

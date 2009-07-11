@@ -30,8 +30,20 @@ namespace SubSonic.DataProviders
 
         public static IDataProvider GetProvider(string connectionStringName)
         {
-            string connString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
-            string providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+            string connString = "";
+            string providerName = "";
+            if (connectionStringName.IndexOf(";") > 0)
+            {
+                // this is actually a connection string
+                connString = connectionStringName;
+                // Default provider
+                providerName = DbClientTypeName.MsSql;
+            }
+            else
+            {
+                connString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+                providerName = ConfigurationManager.ConnectionStrings[connectionStringName].ProviderName;
+            }
             return LoadProvider(connString, providerName);
         }
 

@@ -88,7 +88,8 @@ namespace SubSonic.SqlGeneration.Schema
                 case DbType.Boolean:
                     return "bit";
                 case DbType.SByte:
-                case DbType.Binary:
+                case DbType.Binary: // Steal Binary type for RowVersion
+                    return "timestamp";
                 case DbType.Byte:
                     return "image";
                 case DbType.Currency:
@@ -143,7 +144,8 @@ namespace SubSonic.SqlGeneration.Schema
                 if(column.MaxLength > 0)
                     sb.Append("(" + column.MaxLength + ")");
 
-                if(column.DataType == DbType.Double || column.DataType == DbType.Decimal)
+                //if(column.DataType == DbType.Double || column.DataType == DbType.Decimal)
+                if (column.DataType == DbType.Decimal)
                     sb.Append("(" + column.NumericPrecision + ", " + column.NumberScale + ")");
             }
 
@@ -164,12 +166,34 @@ namespace SubSonic.SqlGeneration.Schema
                     if(!column.DefaultSetting.ToString().EndsWith("()"))
                         column.DefaultSetting = string.Format("'{0}'", column.DefaultSetting);
                 }
-                
-                sb.Append(" CONSTRAINT DF_" + column.Table.Name + "_" + column.Name + " DEFAULT (" +
-                          column.DefaultSetting + ")");
+                if (column.DataType != DbType.Binary) // timestamp, no default
+                {
+                    sb.Append(" CONSTRAINT DF_" + column.Table.Name + "_" + column.Name + " DEFAULT (" +
+                              column.DefaultSetting + ")");
+                }
             }
 
             return sb.ToString();
+        }
+
+        public override string BuildAddColumnStatement(string tableName, IColumn column)
+        {
+            if (column.DataType == DbType.Binary)
+            {
+                // timestamp, no UPDATE statement please
+                return string.Format(ADD_COLUMN, tableName, column.Name, GenerateColumnAttributes(column));
+            }
+            return base.BuildAddColumnStatement(tableName, column);
+        }
+
+        public override string BuildAlterColumnStatement(IColumn column)
+        {
+            if (column.DataType == DbType.Binary)
+            {
+                // timestamp, cannot alter this column it seems
+                return string.Empty;
+            }
+            return base.BuildAlterColumnStatement(column);
         }
 
         /// <summary>

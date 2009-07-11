@@ -82,6 +82,10 @@ WHERE  Row >= {5} AND Row <= {6}";
 
             //cast it
             Insert i = insert;
+            // remove timestamp/RowVersionField, because this is handled by sql server
+            if (insert.SelectColumns.Contains(RowVersionField.DbReservedFieldName))
+                insert.SelectColumns.Remove(insert.SelectColumns.IndexOf(RowVersionField.DbReservedFieldName));
+
             sb.Append(SqlFragment.INSERT_INTO);
             sb.Append(i.Table.QualifiedName);
             sb.Append("(");

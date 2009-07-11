@@ -29,10 +29,10 @@ namespace SubSonic.Schema
         }
 
         public DatabaseTable(string name, IDataProvider provider)
-            : this(null, name, provider, null) {}
+            : this(provider.DbSchemaName, name, provider, null) {}
 
         public DatabaseTable(string name, IDataProvider provider, string classname)
-            : this(null, name, provider, classname) {}
+            : this(provider.DbSchemaName, name, provider, classname) { }
 
         public DatabaseTable(string schema, string name, IDataProvider provider) :
             this(schema, name, provider, null) {}

@@ -36,6 +36,9 @@ namespace SubSonic.SqlGeneration.Schema
     }
 
     [AttributeUsage(AttributeTargets.Property)]
+    public class SubSonicNullStringAttribute : Attribute { }
+
+    [AttributeUsage(AttributeTargets.Property)]
     public class SubSonicNumericPrecisionAttribute : Attribute
     {
         public SubSonicNumericPrecisionAttribute(int precision, int scale)

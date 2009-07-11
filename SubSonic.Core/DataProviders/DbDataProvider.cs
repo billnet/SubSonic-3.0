@@ -45,6 +45,7 @@ namespace SubSonic.DataProviders
             ConnectionString = connectionString;
             DbDataProviderName = providerName;
             Schema = new DatabaseSchema();
+            
             if(string.IsNullOrEmpty(DbDataProviderName))
                 DbDataProviderName = DbClientTypeName.MsSql;
 
@@ -101,6 +102,7 @@ namespace SubSonic.DataProviders
         public IDatabaseSchema Schema { get; set; }
 
         public string DbDataProviderName { get; private set; }
+        public string DbSchemaName { get; set; }
 
         public DbProviderFactory Factory { get; private set; }
 
@@ -342,6 +344,12 @@ namespace SubSonic.DataProviders
             if(result == null)
             {
                 result = type.ToSchemaTable(this);
+                // *** FOREIGN KEYS ***
+                // TODO: Is this code needed in two places?
+                if (ReferenceableTypes != null && ReferenceableTypes.Count > 0)
+                {
+                    result.AddReferencesAsForeignKeys(type, this);
+                }
                 Schema.Tables.Add(result);
             }
 
@@ -350,7 +358,6 @@ namespace SubSonic.DataProviders
 
         public ITable FindOrCreateTable<T>() where T : new()
         {
-            ITable result = null;
             return FindOrCreateTable(typeof(T));
         }
 
@@ -430,8 +437,15 @@ namespace SubSonic.DataProviders
             query.ExecuteTransaction();
         }
 
+
+        /// <summary>
+        /// The list of object types that can be referenced as foreign keys
+        /// </summary>
+        public List<Type> ReferenceableTypes { get; set; }
+
         #endregion
 
+        
 
         private void DecideClient(string dbProviderTypeName)
         {

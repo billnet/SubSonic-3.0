@@ -38,6 +38,7 @@ namespace SubSonic.DataProviders
         //execution
         string DbDataProviderName { get; }
         string Name { get; }
+        string DbSchemaName { get; set; }
         DataClient Client { get; set; }
         TextWriter Log { get; set; }
 
@@ -73,5 +74,7 @@ namespace SubSonic.DataProviders
         DbConnection CreateConnection();
         void MigrateToDatabase<T>(Assembly assembly);
         void MigrateNamespaceToDatabase(string modelNamespace, Assembly assembly);
+
+        List<Type> ReferenceableTypes { get; set; }
     }
 }

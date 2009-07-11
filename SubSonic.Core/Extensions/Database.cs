@@ -113,9 +113,11 @@ namespace SubSonic.Extensions
                 result = DbType.Boolean;
             else if(type == typeof(byte[]))
                 result = DbType.Byte;
+            else if (type == typeof(RowVersionField))
+                result = DbType.Binary;
             else
                 result = DbType.String;
-
+            
             return result;
         }
 
@@ -159,6 +161,16 @@ namespace SubSonic.Extensions
                 //if the property is null, likely it's a Field
                 if(currentProp == null)
                     currentField = cachedFields.SingleOrDefault(x => x.Name.Equals(pName, StringComparison.InvariantCultureIgnoreCase));
+
+                if (pName == RowVersionField.DbReservedFieldName)
+                {
+                    // Find the RowVersionField property by type
+                    currentProp = cachedProps.SingleOrDefault(x => x.PropertyType.Equals(typeof(RowVersionField)));
+                    RowVersionField rowVerField = RowVersionField.FromBytes((Byte[])rdr[i]);
+                    currentProp.SetValue(item, rowVerField, null);
+                    // null the currentProp to avoid the rest of the code
+                    currentProp = null;
+                }
 
                 if(currentProp != null && !DBNull.Value.Equals(rdr.GetValue(i)))
                 {
@@ -351,6 +363,28 @@ namespace SubSonic.Extensions
                                };
             query.Constraints.Add(c);
 
+            // Look for a RowVersionField by it's reserved name
+            var rowVerField = (from IColumn col in tbl.Columns
+                               where col.Name == RowVersionField.DbReservedFieldName
+                               select col).FirstOrDefault();
+            if (rowVerField != null)
+            {
+
+                // Find the RowVersionField property by type
+                var rowVerProp = type.GetProperties()
+                    .SingleOrDefault(x => x.PropertyType.Equals(typeof(RowVersionField)));
+
+                // TODO: null? 
+
+                Constraint verC = new Constraint(ConstraintType.And, rowVerField.Name)
+                {
+                    ParameterValue = (settings[rowVerProp.Name] as RowVersionField).Bytes,
+                    ParameterName = rowVerField.Name,
+                    ConstructionFragment = rowVerField.Name
+                };
+                query.Constraints.Add(verC);
+            }
+
             return query;
         }
 
@@ -371,10 +405,36 @@ namespace SubSonic.Extensions
                 foreach(string key in hashed.Keys)
                 {
                     IColumn col = tbl.GetColumn(key);
+                    if (col == null)
+                    {
+                        object refObject = hashed[key];
+                        if (refObject != null)
+                        {
+                            Type refType = refObject.GetType();
+                            if (provider.ReferenceableTypes.Contains(refType))
+                            {
+                                ITable refTable = provider.FindOrCreateTable(refType);
+                                // null?
+                                col = tbl.GetColumn(refTable.PrimaryKey.Name);
+                            }
+                        }
+                    }
                     if(col != null)
                     {
-                        if(!col.AutoIncrement)
-                            query.Value(col.QualifiedName, hashed[key], col.DataType);
+                        object value = hashed[key];
+                        if (col.IsForeignKey)
+                        {
+                            //TODO: If property name does not equal DB name, this will not work
+                            PropertyInfo idprop =
+                                value.GetType().GetProperties()
+                                .Where(x => x.Name.Equals(col.Name, StringComparison.InvariantCultureIgnoreCase))
+                                .Single();
+                            value = idprop.GetValue(value, null);
+                            // TODO: Verify value is set (object has been saved)
+                        }
+                        if (!col.AutoIncrement)
+                            query.Value(col.QualifiedName, value, col.DataType);
+                    
                     }
                 }
             }
@@ -408,5 +468,7 @@ namespace SubSonic.Extensions
             }
             return query;
         }
+
+        
     }
 }

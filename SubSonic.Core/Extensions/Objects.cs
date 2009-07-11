@@ -155,7 +155,51 @@ namespace SubSonic.Extensions
                    type == typeof(Int64) ||
                    type == typeof(Int64?) ||
                    type == typeof(float?) ||
-                   type == typeof(float);
+                   type == typeof(float) ||
+                   type == typeof(RowVersionField);
+        }
+
+        
+        public static bool HasObjectReferences(this Type type, List<Type> availableReferenceTypes)
+        {
+            var props = type.GetProperties();
+            foreach (var prop in props)
+            {
+                if (availableReferenceTypes.Contains(type))
+                    return true;
+            }
+            return false;
+        }
+
+        public static void AddReferencesAsForeignKeys(this ITable table, Type type, IDataProvider provider)
+        {
+            var props = type.GetProperties();
+            foreach (var prop in props)
+            {
+                if (provider.ReferenceableTypes.Contains(prop.PropertyType))
+                {
+                    var attributes = prop.GetCustomAttributes(false);
+                    bool isIgnored = false;
+                    foreach (var att in attributes)
+                    {
+                        isIgnored = att.ToString().Equals("SubSonic.SqlGeneration.Schema.SubSonicIgnoreAttribute");
+                        if (isIgnored)
+                            break;
+                    }
+                    // Create foreign key 
+                    // HARD CODED STUFF FOR NOW
+                    var column = new DatabaseColumn("temp", table);
+                    column.IsForeignKey = true;
+                    // TODO: Change NullStringAttribute to NullAttribute, to cover this too?
+                    column.IsNullable = false;
+                    column.ForeignKeyTo = provider.FindOrCreateTable(prop.PropertyType);
+                    column.Name = column.ForeignKeyTo.PrimaryKey.Name;
+                    column.DataType = column.ForeignKeyTo.PrimaryKey.DataType;
+                    //table.Columns.Add(column);
+                    // Insert column after first column, which should be the PK
+                    table.Columns.Insert(1, column);
+                }
+            }
         }
 
         public static ITable ToSchemaTable(this Type type, IDataProvider provider)
@@ -211,7 +255,7 @@ namespace SubSonic.Extensions
                     else if(column.DataType == DbType.String)
                     {
                         column.MaxLength = 255;
-
+                        
                         //loop the attributes to see if there's a length
                         foreach(var att in attributes)
                         {
@@ -221,6 +265,24 @@ namespace SubSonic.Extensions
                                 column.MaxLength = lengthAtt.Length;
                             }
                         }
+
+                        //loop the attributes to see if there's a NULL attr
+                        foreach (var att in attributes)
+                        {
+                            if (att.ToString().Equals("SubSonic.SqlGeneration.Schema.SubSonicNullStringAttribute"))
+                            {
+                                var nullAtt = (SubSonicNullStringAttribute)att;
+                                isNullable = true;
+                            }
+                        }
+                    }
+                    else if (column.DataType == DbType.Binary && prop.PropertyType.Equals(typeof(RowVersionField)))
+                    {
+                        RowVersionField rowVerFieldDefault = new RowVersionField();
+                        rowVerFieldDefault.Update();
+                        column.DefaultSetting = rowVerFieldDefault.ToString();
+                        // override column name
+                        column.Name = RowVersionField.DbReservedFieldName;
                     }
 
                     if(isNullable)
